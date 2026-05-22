@@ -27,9 +27,10 @@ double fitness(const int* path, const std::vector<City>& cities, double new_city
     int last_stop = path[0];
     double reward = 0;
     int city_id = 0;
-    
+    // go through the path and calculate total distance
     for (int i = 0; i < LEN_PATH; ++i) {
         city_id = path[i];
+        // calculate rewards from unique cities visited
         if (!visited[city_id]) {
             reward += new_city_reward;
         }
@@ -54,15 +55,18 @@ void breed(const int* path_a, const int* path_b, int* path_c, std::mt19937& rng,
         genes_from_path_b[i] = random_gene(rng);
     }
 
+    // combine genes
     for (auto gene : genes_from_path_b) {
         path_c[gene] = path_b[gene];
     }
 
+    // choose which genes are mutated
     std::vector<int> mutated_genes(n_mutations);
     for (int i = 0; i < n_mutations; i++) {
         mutated_genes[i] = random_gene(rng);
     }
     
+    // mutate
     for (auto mutated_gene : mutated_genes) {
         path_c[mutated_gene] = random_city(rng);
     }
@@ -75,8 +79,10 @@ int main(int argc, char** argv) {
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &size);
 
+    // unique RNG for each process
     std::mt19937 rng(42 + rank);
 
+    // build cities in a circle
     std::vector<City> cities(N_CITIES);
     double angle = 0.0;
     for (int i = 0; i < N_CITIES; i++) {
@@ -85,7 +91,7 @@ int main(int argc, char** argv) {
         cities[i].y = std::sin(angle);
     }
 
-    // Workload computation
+    // split salesmen to each process
     int local_n = N_SALESMEN / size;
     int remainder = N_SALESMEN % size;
     int local_start = rank * local_n + std::min(rank, remainder);
@@ -115,6 +121,7 @@ int main(int argc, char** argv) {
     std::uniform_int_distribution<int> random_city(0, N_CITIES - 1);
     std::uniform_int_distribution<int> local_parent_dist(0, N_SALESMEN / 2 - 1);
 
+    // generate random sequence of cities
     if (rank == 0) {
         for (int i = 0; i < N_SALESMEN * LEN_PATH; i++) {
             paths_flat[i] = random_city(rng);
@@ -135,9 +142,7 @@ int main(int argc, char** argv) {
             int global_idx = local_start + k;
             
             if (global_idx < 10) {
-                std::copy(&paths_flat[global_idx * LEN_PATH], 
-                          &paths_flat[(global_idx + 1) * LEN_PATH], 
-                          &local_next_paths[k * LEN_PATH]);
+                std::copy(&paths_flat[global_idx * LEN_PATH], &paths_flat[(global_idx + 1) * LEN_PATH], &local_next_paths[k * LEN_PATH]);
             } else {
                 int parent_1 = local_parent_dist(rng);
                 int parent_2 = local_parent_dist(rng); 
@@ -148,9 +153,9 @@ int main(int argc, char** argv) {
 
         // Gather paths and fitness scores to root
         MPI_Gatherv(local_next_paths.data(), local_count * LEN_PATH, MPI_INT, all_next_paths.data(), recvcounts_paths.data(), displs_paths.data(), MPI_INT, 0, MPI_COMM_WORLD);
-                    
         MPI_Gatherv(local_fitness.data(), local_count, MPI_DOUBLE, all_fitness.data(), recvcounts_fitness.data(), displs_fitness.data(), MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
+        // rank 0 sorts fitnesses, writes new paths and prints health checks
         if (rank == 0) {
             std::iota(indices.begin(), indices.end(), 0);
             std::sort(indices.begin(), indices.end(), [&all_fitness](int a, int b) {
@@ -158,9 +163,7 @@ int main(int argc, char** argv) {
             });
 
             for (int j = 0; j < N_SALESMEN; j++) {
-                std::copy(&all_next_paths[indices[j] * LEN_PATH], 
-                          &all_next_paths[(indices[j] + 1) * LEN_PATH], 
-                          &paths_flat[j * LEN_PATH]);
+                std::copy(&all_next_paths[indices[j] * LEN_PATH], &all_next_paths[(indices[j] + 1) * LEN_PATH], &paths_flat[j * LEN_PATH]);
             }
 
             if (iter % 1000 == 0) {
