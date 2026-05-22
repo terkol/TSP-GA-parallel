@@ -20,14 +20,6 @@ The algorithm parameters are statically defined: 100,000 iterations, 30 cities, 
 
 Generational advancement utilizes an elitism strategy, where the top 20% of individuals with the highest fitness scores are preserved unmodified. The remaining 80% of the subsequent generation are produced via crossover and mutation. Parent candidate selection is restricted to the top 50% of the current generation. During crossover, a child sequence is instantiated as an exact copy of the first parent. Subsequently, half of the positions are randomly selected and overwritten by the corresponding sequence values from the second parent. Mutation is applied by uniformly selecting two positions within the child chromosome and replacing them with randomly generated city identifiers.
 
-## Assumptions and Scope
-
-The models approximate a solution to the TSP rather than guaranteeing a deterministic global optimum. Convergence to a highly fit path is inferred from fitness stabilization over the iteration count, but edge cases exist where the algorithm may stall in local optima due to insufficient mutation diversity.
-
-It is assumed that duplicate cities within a sequence are permissible data structures. The primary mechanism handling this is the fitness function, which penalizes duplicates dynamically by withholding rewards, rather than the objective code strictly enforcing a unique permutation array during crossover or mutation operations.
-
-For parallel execution, the OpenMP implementation assumes that instantiating separate pseudorandom number generators seeded dynamically per thread prevents state collisions and race conditions. The MPI implementation assumes a static workload distribution where the population is divided evenly across available ranks, with any remainder assigned sequentially to lower ranks.
-
 ## Performance Results
 
 The following execution times represent objective evidence gathered from running the three implementations under consistent environmental parameters.
@@ -38,7 +30,7 @@ The following execution times represent objective evidence gathered from running
 | OpenMP | 12 Cores (Shared Memory) | 7215 |
 | MPI | 12 Cores (Distributed Memory) | 6565 |
 
-**Inference and Mechanisms:** The empirical data demonstrates a 72.4% reduction in execution time using OpenMP and a 74.9% reduction using MPI with the same amount of cores, relative to the sequential baseline. It is inferred that the fitness evaluation and breeding phases are highly parallelizable, dominating the computational cost of the algorithm.
+The empirical data demonstrates a 72.4% reduction in execution time using OpenMP and a 74.9% reduction using MPI with the same amount of cores, relative to the sequential baseline. It is inferred that the fitness evaluation and breeding phases are highly parallelizable, dominating the computational cost of the algorithm.
 
 The MPI implementation marginally outperforms OpenMP in this specific test. The underlying mechanism for MPI involves explicit data broadcast (`MPI_Bcast`) and gathering (`MPI_Gatherv`) per iteration. While this introduces communication overhead that does not exist in the shared-memory OpenMP model, the strict memory isolation and cache locality of MPI processes likely offset the communication penalty at this specific configuration scale. A potential counter-hypothesis is that at significantly larger population sizes or higher iteration frequencies, MPI communication overhead could bottleneck performance, rendering OpenMP faster on a single multi-core node.
 
